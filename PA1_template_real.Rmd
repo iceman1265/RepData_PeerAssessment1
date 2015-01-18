@@ -1,0 +1,122 @@
+---
+title: "PA1_template"
+output: html_document
+---
+#Fitbit Activity Monitor Coursera Markdown Assignment 1
+
+##Importing the data into R from the file URL on Coursera
+
+```{r}
+#First we must download the data into a directory in R and then read that data into our table which will ultimately be used for the rest of the project. 
+fileUrl <- ("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip")
+temp_dir = tempdir()
+temp_file = tempfile(tmpdir = temp_dir, fileext=".zip")
+download.file(fileUrl, temp_file, method = "curl")
+fname = unzip(temp_file, list = TRUE)$Name[1]
+unzip(temp_file, files = fname, exdir = temp_dir, overwrite = TRUE)
+file_path = file.path(temp_dir, fname)
+fitbit <- read.csv(file_path, as.is=TRUE)
+head(fitbit)
+```
+
+##What is mean total number of steps taken per day?
+
+First we need to determine the total number of steps taken each day by summing the steps per day by the date. We can do this with the following R code and ignoring missing values:
+```{r}
+dailysteps <- aggregate(steps ~ date, fitbit, sum)
+head(dailysteps)
+#now to create the histogram of this information
+
+hist(dailysteps$steps, breaks = 8, col="red", xlab = "Daily Steps", ylab = "Frequency", main = "Total Number of Steps Taken Each Day")
+
+#calculating the mean and the median total number of steps taken each day
+dailystepsmean <- mean(dailysteps$steps)
+dailystepsmedian <- median(dailysteps$steps)
+```
+The mean number of daily steps is 10766.19 and the median number of daily steps is 10765
+
+##What is the average daily activity pattern?
+
+```{r}
+#we need to determine the average number of steps per interval across all the days recorded. This can be done easily once again using the aggregate function
+interval_steps <- aggregate(steps~interval, fitbit, mean)
+
+#now for plotting
+plot(interval_steps$interval, interval_steps$steps, type = "l", col=1, main="Average number of daily steps across intervals", xlab="Interval", ylab="Avg number of steps")
+
+#and to determine which interval has maximum average number of steps
+
+avg_max_steps <- which.max(interval_steps$steps)
+interval_steps [avg_max_steps,]
+```
+It is clear that interval 835 has the maximum average number of steps, that being 206.1698 steps
+
+##Inputting missing values
+
+We must determine where there are missing values due to the fact that they can create bias into some calculations or summaries of the data. We can do so with the following:
+
+```{r}
+missing_values_df <- fitbit[!complete.cases(fitbit),]
+nrow(missing_values_df)
+```
+As can be seen there are 2304 NA values spread across the data. From here we need to replace the missing values with, in this case, the mean number of steps.
+
+Now we need to replace the NA values identified above with the mean for each 5 minute interval
+
+```{r}
+for(i in 1:nrow(fitbit)){
+  if (is.na(fitbit$steps[i])){
+    interval_value <- fitbit$interval[i]
+    rowid <- which(interval_steps$interval == interval_value)
+    step_value <- interval_steps$steps[rowid]
+    fitbit$steps[i] <- step_value
+  }
+}
+
+#Total number of steps in a day
+step_data <- aggregate(steps~date,fitbit,sum)
+
+hist(step_data$steps, col=1, main="(NA Removed) Histogram of total steps per day", xlab = "total steps per day")
+```
+Getting mean and median number of steps per day w/NA's removed
+```{r}
+#NA's removed
+mean(step_data$steps)
+
+median(step_data$steps)
+
+#We know from before that the mean number of daily steps is 10766.19 and the median number is 10765.
+
+#Both the mean and median when NA's are replaced is 10766.19. Therefore the means are the exact same but the median differs slightly.
+```
+
+##Are there differences between weekday and weekend activity patterns?
+
+```{r}
+#converting data
+fitbit$date <- as.Date(fitbit$date, "%Y-%m-%d")
+
+fitbit$day <- weekdays(fitbit$date)
+
+fitbit$day_type <- c("weekday")
+
+for (i in 1:nrow(fitbit)){
+  if (fitbit$day[i] == "Saturday" || fitbit$day[i] == "Sunday"){
+    fitbit$day_type[i] <- "weekend"
+  }
+}
+
+fitbit$day_type <- as.factor(fitbit$day_type)
+
+step_data <- aggregate(steps ~ interval+day_type, fitbit, mean)
+
+library(ggplot2)
+
+qplot(interval, steps, data=step_data, geom=c("line"), xlab="Interval", ylab="# of steps", main="Weekend vs Weekday")+ facet_wrap(~ day_type, ncol=1)
+```
+
+
+
+
+
+
